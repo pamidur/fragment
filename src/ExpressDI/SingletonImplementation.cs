@@ -1,18 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
+using static ExpressDI.Implementation;
 
 namespace ExpressDI
 {
     public static class SingletonImplementationFactory
     {
-        public static Func<Type, IImplementation> Singleton(this Container f)
+        public static Func<Type, Dictionary<Type, Contract>, Implementation> Singleton(this Lifestyle f)
         {
-            return t => Create(t, f);
-        }
-
-        private static IImplementation Create(Type type, Container dp)
-        {
-            return new SingletonImplementation(type, dp);
+            return (t, d) => new SingletonImplementation(t, d);
         }
     }
 
@@ -22,15 +19,10 @@ namespace ExpressDI
 
         private object _obj;
         private Expression _exp;
+        private Func<object> _func;
 
-        public SingletonImplementation(Type type, Container dp) : base(type, dp)
+        public SingletonImplementation(Type type, Dictionary<Type, Contract> contracts) : base(type, contracts)
         {
-        }
-
-        protected override void DependenciesChanged(object sender, EventArgs e)
-        {
-            //do nothing
-            //todo:: maybe check if already instatinaned
         }
 
         public override Expression GetExpression()
@@ -41,7 +33,7 @@ namespace ExpressDI
             return _exp;
         }
 
-        public override object Resolve()
+        private object Resolve()
         {
             if (_obj == null)
                 lock (_sync)
@@ -49,6 +41,17 @@ namespace ExpressDI
                         _obj = Expression.Lambda<Func<object>>(base.GetExpression()).Compile()();
 
             return _obj;
+        }
+
+        public override Func<object> GetActivation()
+        {
+            if (_func == null)
+            {
+                var o = Resolve();
+                _func = () => o;
+            }
+
+            return _func;
         }
     }
 }
