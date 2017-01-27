@@ -51,8 +51,8 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ExpressDI\ExpressDI.csproj">
-      <Project>{1b3350ea-2770-48e4-84f9-b54b167f79bf}</Project>
+    <ProjectReference Include="..\..\src\ExpressDI2\ExpressDI.csproj">
+      <Project>{0890037b-7c2e-4ac0-931a-2bd6e73b7fac}</Project>
       <Name>ExpressDI</Name>
     </ProjectReference>
   </ItemGroup>

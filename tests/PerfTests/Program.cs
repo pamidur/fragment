@@ -1,11 +1,13 @@
 ﻿using ExpressDI;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace PerfTests
 {
@@ -13,12 +15,13 @@ namespace PerfTests
     {
         private static void Main(string[] args)
         {
-            TestDictionaryLookup();
-            TestDictionaryLookupMethod();
+            //TestDictionaryLookup();
+            //TestDictionaryLookupMethod();
             TestDictionaryLookupNoCast();
+            //TestLookupPrepare();
             //TestForVsForeach();
 
-            TestSingletons();
+            //TestSingletons();
         }
 
         private static void TestSingletons()
@@ -137,50 +140,163 @@ namespace PerfTests
             Console.WriteLine();
         }
 
+        private class TypeComparer : IComparer<Type>
+        {
+            public int Compare(Type x, Type y)
+            {
+                var xx = x.MetadataToken;
+                var yy = y.MetadataToken;
+
+                return xx > yy ? 1 :
+                 (xx < yy ? -1 : 0);
+            }
+        }
+
+        private static void TestLookupPrepare()
+        {
+            Console.WriteLine("LookupPrepare:");
+
+            var systemTypes = typeof(EventLogEntry).Assembly.GetTypes().ToList();
+
+            var l = typeof(EventLogEntry);
+            var tc = new TypeComparer();
+
+            var ln = l.FullName;
+            var lc = l.MetadataToken;
+            var lcm = l.Module.MetadataToken;
+
+            var lcm1 = lc >> 16;
+            var lcm2 = lc & 0xffff;
+
+            Test(10, 5, new Dictionary<string, Action> {
+                { "Dict By Type", ()=> {
+                    var a = systemTypes.ToDictionary(t => t, t => t);
+                } },
+                { "Dict by Fullname", ()=> {
+                    var b = systemTypes.ToDictionary(t => t.FullName, t => t);
+                } },
+                { "Dict by Token", ()=> {
+                    var b2 = systemTypes.ToDictionary(t => t.MetadataToken, t => t);
+                } },
+                { "Sorted Dict by Token", ()=> {
+                    var b3 = new SortedDictionary<int, Type>(systemTypes.ToDictionary(t => t.MetadataToken, t => t));
+                } },
+                { "Hasttable", ()=> {
+                    var d = new System.Collections.Hashtable();
+                    systemTypes.ForEach(t => d.Add(t, t));
+                } },
+                { "SortedDict", ()=> {
+                    var e = new SortedDictionary<int, SortedDictionary<int, Type>>(systemTypes.GroupBy(s => s.Module.MetadataToken).ToDictionary(g => g.Key, g => new SortedDictionary<int, Type>(g.ToDictionary(t => t.MetadataToken, t => t))));
+                } },
+                { "Two Arrays", ()=> {
+                     var f = new Type[short.MaxValue][];
+                        var b2 = systemTypes.ToDictionary(t => t.MetadataToken, t => t);
+                        b2.ToList().ForEach(t =>
+                        {
+                            var f1 = f[t.Key >> 16];
+                            if (f1 == null)
+
+                                f[t.Key >> 16] = f1 = new Type[short.MaxValue];
+
+                            f1[t.Key & 0xffff] = t.Value;
+                        });
+                } },
+            });
+
+            Console.WriteLine();
+        }
+
         private static void TestDictionaryLookupNoCast()
         {
             Console.WriteLine("DictionaryLookupNoCast:");
 
-            var a = new Dictionary<Type, object> {
-                { typeof(StringBuilder), new object() },
-                { typeof(Guid), new object() },
-                { typeof(GenericUriParser), new object() },
-            };
+            var systemTypes = typeof(EventLogEntry).Assembly.GetTypes().ToList();
 
-            var b = new Dictionary<string, object> {
-                { typeof(StringBuilder).FullName, new object() },
-                { typeof(Guid).FullName, new object() },
-                { typeof(GenericUriParser).FullName, new object() },
-            };
+            var a = systemTypes.ToDictionary(t => t, t => t);
 
-            var c = new Dictionary<object, object> {
-                { typeof(StringBuilder), new object() },
-                { typeof(Guid), new object() },
-                { typeof(GenericUriParser), new object() },
-            };
+            var b = systemTypes.ToDictionary(t => t.FullName, t => t);
+
+            var b2 = systemTypes.ToDictionary(t => t.MetadataToken, t => t);
+
+            var b3 = new SortedDictionary<int, Type>(systemTypes.ToDictionary(t => t.MetadataToken, t => t));
+            var b4 = systemTypes.ToDictionary(t => t.MetadataToken.ToString(), t => t);
+
+            var c = systemTypes.ToList();
+            c.Sort(new TypeComparer());
 
             var d = new System.Collections.Hashtable();
+            systemTypes.ForEach(t => d.Add(t, t));
 
-            d.Add(typeof(StringBuilder), new object());
-            d.Add(typeof(Guid), new object());
-            d.Add(typeof(GenericUriParser), new StringBuilder());
+            var e = new SortedDictionary<int, SortedDictionary<int, Type>>(systemTypes.GroupBy(s => s.Module.MetadataToken).ToDictionary(g => g.Key, g => new SortedDictionary<int, Type>(g.ToDictionary(t => t.MetadataToken, t => t))));
 
-            var l = typeof(GenericUriParser);
+            var before = GC.GetTotalMemory(false);
 
-            var ln = typeof(GenericUriParser).FullName;
+            var f = new Type[short.MaxValue][];
+            b2.ToList().ForEach(t =>
+            {
+                var f1 = f[t.Key >> 16];
+                if (f1 == null)
+
+                    f[t.Key >> 16] = f1 = new Type[short.MaxValue];
+
+                f1[t.Key & 0xffff] = t.Value;
+            });
+
+            var after = GC.GetTotalMemory(false);
+
+            long size = 0;
+            object o = new object();
+            using (Stream s = new MemoryStream())
+            {
+                BinaryFormatter formatter = new BinaryFormatter();
+                formatter.Serialize(s, new Type[short.MaxValue]);
+                size = s.Length;
+            }
+
+            var l = typeof(EventLogEntry);
+            var tc = new TypeComparer();
 
             Test(500000, 5, new Dictionary<string, Action> {
-                { "Object", ()=> {
-                    var r = c[l];
+                { "List Binary", ()=> {
+                    var ri = c.BinarySearch(l,tc);
+                    var r = c[ri];
                 } },
-                { "Type", ()=> {
+                { "Dict By Type", ()=> {
                     var r = a[l];
                 } },
-                { "Fullname", ()=> {
+                { "Dict by Fullname", ()=> {
+                    var ln = l.FullName;
                     var r = b[ln];
                 } },
+                { "Dict by string token", ()=> {
+                    var ln = l.MetadataToken.ToString();
+                    var r = b4[ln];
+                } },
+                { "Dict by Token", ()=> {
+                    var lc = l.MetadataToken;
+                    var r = b2[lc];
+                } },
+                { "Sorted Dict by Token", ()=> {
+                    var lc = l.MetadataToken;
+                    var r = b3[lc];
+                } },
+                //{ "Sorted Dict by Type", ()=> {
+                //    var r = b4[l];
+                //} },
                 { "Hasttable", ()=> {
-                    var r  =(StringBuilder) d[l];
+                    var r  =(Type) d[l];
+                } },
+                { "SortedDict", ()=> {
+                    var lcm = l.Module.MetadataToken;
+                    var lc = l.MetadataToken;
+                    var r  = e[lcm][lc];
+                } },
+                { "Two Arrays", ()=> {
+                    var lc = l.MetadataToken;
+                    //var lcm = l.Module.ScopeName;
+                    var lcm1 = lc >> 16;
+                    var lcm2 = lc & 0xffff;
+                    var r  = f[lcm1][lcm2];
                 } },
             });
 
