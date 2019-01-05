@@ -3,7 +3,7 @@
 namespace ConsoleApp2
 {
     public abstract class Container
-    { 
+    {
         public interface IContainerFactory
         {
             IContainer NewContainer();
@@ -103,15 +103,16 @@ namespace ConsoleApp2
 
         #endregion
 
-        
+
         protected override void Bootstrap(IContainerBuilder builder)
         {
             builder.RegisterSingleton<ITestIface, TestImpl>();
-            builder.RegisterSingleton<ITestIface>(c => new TestImpl(4,c.ToString()));
+            builder.RegisterSingleton<ITestIface>(c => new TestImpl(4, c.ToString()));
             builder.RegisterSingleton<ITestIface>(c => new TestImpl());
             builder.RegisterSingleton<ITestIface>(c => new TestImpl(c.ToString()));
             builder.RegisterSingleton<ITestIface>(c => new TestImpl(4));
         }
+
     }
 
 
@@ -121,6 +122,18 @@ namespace ConsoleApp2
         {
             var container = Container.Build<MyContainer>();
             Console.ReadLine();
+        }
+
+        private static void Do(byte b)
+        {
+            switch (b)
+            {
+                case 0: Console.WriteLine(0);break;
+                case 1: Console.WriteLine(1);break;
+                case 2: Console.WriteLine(2);break;
+                case 3: Console.WriteLine(3);break;
+                default: Console.WriteLine(-1); break;
+            }
         }
     }
 
